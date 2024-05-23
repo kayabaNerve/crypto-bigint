@@ -70,6 +70,7 @@ use zeroize::DefaultIsZeroes;
 // Our PartialEq impl only differs from the default one by being constant-time, so this is safe
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Copy, Clone, Hash)]
+#[repr(C)]
 pub struct Uint<const LIMBS: usize> {
     /// Inner limb array. Stored from least significant to most significant.
     limbs: [Limb; LIMBS],

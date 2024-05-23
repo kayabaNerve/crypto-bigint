@@ -6,6 +6,7 @@
 macro_rules! impl_modulus {
     ($name:ident, $uint_type:ty, $value:expr) => {
         #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+        #[repr(C)]
         pub struct $name {}
         impl<const DLIMBS: usize>
             $crate::modular::constant_mod::ResidueParams<{ <$uint_type>::LIMBS }> for $name
