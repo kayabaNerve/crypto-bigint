@@ -6,9 +6,6 @@
 use crypto_bigint::{NonZero, Random, U128, U256};
 use dudect_bencher::{ctbench_main, BenchRng, Class, CtRunner};
 
-use crypto_bigint::{Random, U128, U256, NonZero};
-use dudect_bencher::{ctbench_main, BenchRng, Class, CtRunner};
-
 /// Check `UInt::add` for constant-time operation.
 fn add(runner: &mut CtRunner, mut rng: &mut BenchRng) {
     const ITERATIONS_OUTER: usize = 10_000;
