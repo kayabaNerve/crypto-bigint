@@ -63,7 +63,7 @@ impl<const LIMBS: usize> Odd<Uint<LIMBS>> {
     /// Ref: Pornin, Optimized Binary GCD for Modular Inversion, Algorithm 2.
     /// <https://eprint.iacr.org/2020/972.pdf>
     #[inline]
-    pub const fn optimized_bingcd(&self, rhs: &Uint<LIMBS>) -> Self {
+    pub fn optimized_bingcd(&self, rhs: &Uint<LIMBS>) -> Self {
         self.optimized_bingcd_::<{ U64::BITS }, { U64::LIMBS }, { U128::LIMBS }>(rhs)
     }
 

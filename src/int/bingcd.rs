@@ -49,14 +49,14 @@ impl<T: Copy, const LIMBS: usize> BaseIntBinxgcdOutput<T, LIMBS> {
 
 impl<const LIMBS: usize> Int<LIMBS> {
     /// Compute the gcd of `self` and `rhs` leveraging the Binary GCD algorithm.
-    pub const fn bingcd(&self, rhs: &Self) -> Uint<LIMBS> {
+    pub fn bingcd(&self, rhs: &Self) -> Uint<LIMBS> {
         self.abs().bingcd(&rhs.abs())
     }
 
     /// Executes the Binary Extended GCD algorithm.
     ///
     /// Given `(self, rhs)`, computes `(g, x, y)`, s.t. `self * x + rhs * y = g = gcd(self, rhs)`.
-    pub const fn binxgcd(&self, rhs: &Self) -> IntBinxgcdOutput<LIMBS> {
+    pub fn binxgcd<const DOUBLE: usize>(&self, rhs: &Self) -> IntBinxgcdOutput<LIMBS> where Uint<LIMBS>: crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>> {
         // Make sure `self` and `rhs` are nonzero.
         let self_is_zero = self.is_nonzero().not();
         let self_nz = Int::select(self, &Int::ONE, self_is_zero)
@@ -106,14 +106,14 @@ impl<const LIMBS: usize> Int<LIMBS> {
 
 impl<const LIMBS: usize> NonZero<Int<LIMBS>> {
     /// Compute the gcd of `self` and `rhs` leveraging the Binary GCD algorithm.
-    pub const fn bingcd(&self, rhs: &Self) -> NonZero<Uint<LIMBS>> {
+    pub fn bingcd(&self, rhs: &Self) -> NonZero<Uint<LIMBS>> {
         self.abs().bingcd(&rhs.as_ref().abs())
     }
 
     /// Execute the Binary Extended GCD algorithm.
     ///
     /// Given `(self, rhs)`, computes `(g, x, y)` s.t. `self * x + rhs * y = g = gcd(self, rhs)`.
-    pub const fn binxgcd(&self, rhs: &Self) -> NonZeroIntBinxgcdOutput<LIMBS> {
+    pub fn binxgcd<const DOUBLE: usize>(&self, rhs: &Self) -> NonZeroIntBinxgcdOutput<LIMBS> where Uint<LIMBS>: crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>> {
         let (mut lhs, mut rhs) = (*self.as_ref(), *rhs.as_ref());
 
         // Leverage the property that gcd(2^k * a, 2^k *b) = 2^k * gcd(a, b)
@@ -161,14 +161,14 @@ impl<const LIMBS: usize> NonZero<Int<LIMBS>> {
 
 impl<const LIMBS: usize> Odd<Int<LIMBS>> {
     /// Compute the gcd of `self` and `rhs` leveraging the Binary GCD algorithm.
-    pub const fn bingcd(&self, rhs: &Self) -> Odd<Uint<LIMBS>> {
+    pub fn bingcd(&self, rhs: &Self) -> Odd<Uint<LIMBS>> {
         self.abs().bingcd(&rhs.as_ref().abs())
     }
 
     /// Execute the Binary Extended GCD algorithm.
     ///
     /// Given `(self, rhs)`, computes `(g, x, y)` s.t. `self * x + rhs * y = g = gcd(self, rhs)`.
-    pub const fn binxgcd(&self, rhs: &NonZero<Int<LIMBS>>) -> OddIntBinxgcdOutput<LIMBS> {
+    pub fn binxgcd<const DOUBLE: usize>(&self, rhs: &NonZero<Int<LIMBS>>) -> OddIntBinxgcdOutput<LIMBS> where Uint<LIMBS>: crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>> {
         let (abs_lhs, sgn_lhs) = self.abs_sign();
         let (abs_rhs, sgn_rhs) = rhs.abs_sign();
 

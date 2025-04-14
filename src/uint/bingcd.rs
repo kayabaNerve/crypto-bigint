@@ -8,7 +8,7 @@ use crate::{ConstChoice, Int, NonZero, Odd, Uint};
 
 impl<const LIMBS: usize> Uint<LIMBS> {
     /// Compute the greatest common divisor of `self` and `rhs`.
-    pub const fn bingcd(&self, rhs: &Self) -> Self {
+    pub fn bingcd(&self, rhs: &Self) -> Self {
         let self_is_zero = self.is_nonzero().not();
         let self_nz = Uint::select(self, &Uint::ONE, self_is_zero)
             .to_nz()
@@ -19,7 +19,7 @@ impl<const LIMBS: usize> Uint<LIMBS> {
     /// Executes the Binary Extended GCD algorithm.
     ///
     /// Given `(self, rhs)`, computes `(g, x, y)`, s.t. `self * x + rhs * y = g = gcd(self, rhs)`.
-    pub const fn binxgcd(&self, rhs: &Self) -> UintBinxgcdOutput<LIMBS> {
+    pub fn binxgcd<const DOUBLE: usize>(&self, rhs: &Self) -> UintBinxgcdOutput<LIMBS> where Uint<LIMBS>: crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>> {
         // Make sure `self` and `rhs` are nonzero.
         let self_is_zero = self.is_nonzero().not();
         let self_nz = Uint::select(self, &Uint::ONE, self_is_zero)
@@ -67,7 +67,7 @@ impl<const LIMBS: usize> Uint<LIMBS> {
 
 impl<const LIMBS: usize> NonZero<Uint<LIMBS>> {
     /// Compute the greatest common divisor of `self` and `rhs`.
-    pub const fn bingcd(&self, rhs: &Uint<LIMBS>) -> Self {
+    pub fn bingcd(&self, rhs: &Uint<LIMBS>) -> Self {
         let val = self.as_ref();
         // Leverage two GCD identity rules to make self odd.
         // 1) gcd(2a, 2b) = 2 * gcd(a, b)
@@ -89,7 +89,7 @@ impl<const LIMBS: usize> NonZero<Uint<LIMBS>> {
     /// Execute the Binary Extended GCD algorithm.
     ///
     /// Given `(self, rhs)`, computes `(g, x, y)` s.t. `self * x + rhs * y = g = gcd(self, rhs)`.
-    pub const fn binxgcd(&self, rhs: &Self) -> NonZeroUintBinxgcdOutput<LIMBS> {
+    pub fn binxgcd<const DOUBLE: usize>(&self, rhs: &Self) -> NonZeroUintBinxgcdOutput<LIMBS> where Uint<LIMBS>: crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>> {
         let (mut lhs, mut rhs) = (*self.as_ref(), *rhs.as_ref());
 
         // Leverage the property that gcd(2^k * a, 2^k *b) = 2^k * gcd(a, b)
@@ -139,7 +139,7 @@ impl<const LIMBS: usize> Odd<Uint<LIMBS>> {
     /// threshold. When using [Uint]s with `LIMBS` close to the threshold, it may be useful to
     /// manually test whether the classic or optimized algorithm is faster for your machine.
     #[inline(always)]
-    pub const fn bingcd(&self, rhs: &Uint<LIMBS>) -> Self {
+    pub fn bingcd(&self, rhs: &Uint<LIMBS>) -> Self {
         if LIMBS < 6 {
             self.classic_bingcd(rhs)
         } else {
@@ -150,8 +150,8 @@ impl<const LIMBS: usize> Odd<Uint<LIMBS>> {
     /// Execute the Binary Extended GCD algorithm.
     ///
     /// Given `(self, rhs)`, computes `(g, x, y)` s.t. `self * x + rhs * y = g = gcd(self, rhs)`.
-    pub const fn binxgcd(&self, rhs: &Self) -> OddUintBinxgcdOutput<LIMBS> {
-        self.binxgcd_(rhs).process()
+    pub fn binxgcd<const DOUBLE: usize>(&self, rhs: &Self) -> OddUintBinxgcdOutput<LIMBS> where Uint<LIMBS>: crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>> {
+        self.binxgcd_(rhs).process::<DOUBLE>(**self, **rhs)
     }
 }
 
@@ -167,9 +167,9 @@ mod tests {
 
         use crate::{Gcd, Int, U64, U128, U256, U512, U1024, U2048, U4096, U8192, U16384, Uint};
 
-        fn bingcd_test<const LIMBS: usize>(lhs: Uint<LIMBS>, rhs: Uint<LIMBS>)
+        fn bingcd_test<const LIMBS: usize, const DOUBLE: usize>(lhs: Uint<LIMBS>, rhs: Uint<LIMBS>)
         where
-            Uint<LIMBS>: Gcd<Output = Uint<LIMBS>>,
+            Uint<LIMBS>: Gcd<Output = Uint<LIMBS>> + crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>>,
         {
             let gcd = lhs.gcd(&rhs);
             let bingcd = lhs.bingcd(&rhs);
@@ -177,9 +177,9 @@ mod tests {
         }
 
         #[cfg(feature = "rand_core")]
-        fn bingcd_randomized_tests<const LIMBS: usize>(iterations: u32)
+        fn bingcd_randomized_tests<const LIMBS: usize, const DOUBLE: usize>(iterations: u32)
         where
-            Uint<LIMBS>: Gcd<Output = Uint<LIMBS>>,
+            Uint<LIMBS>: Gcd<Output = Uint<LIMBS>> + crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>>
         {
             let mut rng = ChaChaRng::from_seed([0; 32]);
             for _ in 0..iterations {
@@ -189,9 +189,9 @@ mod tests {
             }
         }
 
-        fn bingcd_tests<const LIMBS: usize>()
+        fn bingcd_tests<const LIMBS: usize, const DOUBLE: usize>()
         where
-            Uint<LIMBS>: Gcd<Output = Uint<LIMBS>>,
+            Uint<LIMBS>: Gcd<Output = Uint<LIMBS>> + crate::ConcatMixed<Uint<LIMBS>, MixedOutput = Uint<DOUBLE>>,
         {
             // Edge cases
             let min = Int::MIN.abs();
@@ -218,15 +218,14 @@ mod tests {
 
         #[test]
         fn test_bingcd() {
-            bingcd_tests::<{ U64::LIMBS }>();
-            bingcd_tests::<{ U128::LIMBS }>();
-            bingcd_tests::<{ U256::LIMBS }>();
-            bingcd_tests::<{ U512::LIMBS }>();
-            bingcd_tests::<{ U1024::LIMBS }>();
-            bingcd_tests::<{ U2048::LIMBS }>();
-            bingcd_tests::<{ U4096::LIMBS }>();
-            bingcd_tests::<{ U8192::LIMBS }>();
-            bingcd_tests::<{ U16384::LIMBS }>();
+            bingcd_tests::<{ U64::LIMBS }, { U128::LIMBS }>();
+            bingcd_tests::<{ U128::LIMBS }, { U256::LIMBS }>();
+            bingcd_tests::<{ U256::LIMBS }, { U512::LIMBS }>();
+            bingcd_tests::<{ U512::LIMBS }, { U1024::LIMBS }>();
+            bingcd_tests::<{ U1024::LIMBS }, { U2048::LIMBS }>();
+            bingcd_tests::<{ U2048::LIMBS }, { U4096::LIMBS }>();
+            bingcd_tests::<{ U4096::LIMBS }, { U8192::LIMBS }>();
+            bingcd_tests::<{ U8192::LIMBS }, { U16384::LIMBS }>();
         }
     }
 
