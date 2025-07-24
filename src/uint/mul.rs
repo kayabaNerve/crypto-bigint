@@ -50,6 +50,61 @@ const fn schoolbook_multiplication(lhs: &[Limb], rhs: &[Limb], lo: &mut [Limb], 
     }
 }
 
+/// Schoolbook multiplication which performs addition to an existing result value.
+#[inline(always)]
+const fn schoolbook_multiplication_in_place<const SKIP_IN_LHS: usize, const SKIP_IN_RHS: usize, const RHS_STOP_AT: usize>(
+    lhs: &[Limb],
+    rhs: &[Limb],
+    lo: &mut [Limb],
+    hi: &mut [Limb],
+    carries: &mut [Limb],
+) {
+    if lhs.len() != lo.len() || rhs.len() != hi.len() {
+        panic!("schoolbook multiplication length mismatch");
+    }
+    if rhs.len() != carries.len() {
+        panic!("schoolbook multiplication length mismatch");
+    }
+    if SKIP_IN_LHS > lhs.len() {
+        panic!("skipping more limbs than present in lhs");
+    }
+    if SKIP_IN_RHS > rhs.len() {
+        panic!("skipping more limbs than present in rhs");
+    }
+    if RHS_STOP_AT > rhs.len() {
+        panic!("stopping at more limbs than present in rhs");
+    }
+
+    let mut i = SKIP_IN_RHS;
+    while i < RHS_STOP_AT {
+        let mut j = SKIP_IN_LHS;
+        let mut carry = Limb::ZERO;
+        let xi = rhs[i];
+
+        while j < lhs.len() {
+            let k = i + j;
+
+            if k >= lhs.len() {
+                (hi[k - lhs.len()], carry) = xi.carrying_mul_add(rhs[j], hi[k - lhs.len()], carry);
+            } else {
+                (lo[k], carry) = xi.carrying_mul_add(rhs[j], lo[k], carry);
+            }
+
+            j += 1;
+        }
+
+        carries[i + j - lhs.len()] = carry;
+        i += 1;
+    }
+
+    let mut i = 0;
+    let mut carry = Limb::ZERO;
+    while i < carries.len() {
+        (hi[i], carry) = hi[i].carrying_add(carry, carries[i]);
+        i += 1;
+    }
+}
+
 /// Schoolbook method of squaring.
 ///
 /// Like schoolbook multiplication, but only considering half of the multiplication grid.
@@ -160,25 +215,67 @@ impl<const LIMBS: usize> Uint<LIMBS> {
         &self,
         rhs: &Uint<RHS_LIMBS>,
     ) -> (Self, Uint<RHS_LIMBS>) {
-        if LIMBS == RHS_LIMBS {
-            if LIMBS == 128 {
-                let (a, b) = UintKaratsubaMul::<128>::multiply(&self.limbs, &rhs.limbs);
-                // resize() should be a no-op, but the compiler can't infer that Uint<LIMBS> is Uint<128>
-                return (a.resize(), b.resize());
-            }
-            if LIMBS == 64 {
-                let (a, b) = UintKaratsubaMul::<64>::multiply(&self.limbs, &rhs.limbs);
-                return (a.resize(), b.resize());
-            }
-            if LIMBS == 32 {
-                let (a, b) = UintKaratsubaMul::<32>::multiply(&self.limbs, &rhs.limbs);
-                return (a.resize(), b.resize());
-            }
-            if LIMBS == 16 {
-                let (a, b) = UintKaratsubaMul::<16>::multiply(&self.limbs, &rhs.limbs);
-                return (a.resize(), b.resize());
-            }
+        macro_rules! partial_karatsuba {
+            ($part: literal, $sum: literal) => {{
+                if (LIMBS >= $part) && (RHS_LIMBS >= $part) {
+                    // Perform Karatsuba over the largest power of two mutually present
+                    let mut l0 = Uint::<$part>::ZERO;
+                    let mut l1 = Uint::<$part>::ZERO;
+                    let mut b = 0;
+                    while b < $part {
+                        l0.limbs[b] = self.limbs[b];
+                        l1.limbs[b] = rhs.limbs[b];
+                        b += 1;
+                    }
+                    let (l0, l1): (Uint<$part>, Uint<$part>) =
+                        UintKaratsubaMul::<$part>::multiply(&l0.limbs, &l1.limbs);
+
+                    // Copy into the result
+                    let mut lo = Self::ZERO;
+                    let mut hi = Uint::<RHS_LIMBS>::ZERO;
+                    let mut b = 0;
+                    while b < $sum {
+                        let limb = if b < $part {
+                            l0.limbs[b]
+                        } else {
+                            l1.limbs[b - $part]
+                        };
+                        if b < LIMBS {
+                            lo.limbs[b] = limb;
+                        } else {
+                            hi.limbs[b - LIMBS] = limb;
+                        }
+                        b += 1;
+                    }
+
+                    // Perform traditional multiplication for everything not already captured
+
+                    // Top LHS limbs by common power of two of RHS
+                    schoolbook_multiplication_in_place::<$part, 0, $part>(
+                        &self.limbs,
+                        &rhs.limbs,
+                        &mut lo.limbs,
+                        &mut hi.limbs,
+                        &mut { Uint::<RHS_LIMBS>::ZERO }.limbs,
+                    );
+
+                    // Top RHS limbs by all of LHS
+                    schoolbook_multiplication_in_place::<0, $part, RHS_LIMBS>(
+                        &self.limbs,
+                        &rhs.limbs,
+                        &mut lo.limbs,
+                        &mut hi.limbs,
+                        &mut { Uint::<RHS_LIMBS>::ZERO }.limbs,
+                    );
+
+                    return (lo, hi);
+                }
+            }};
         }
+        partial_karatsuba!(128, 256);
+        partial_karatsuba!(64, 128);
+        partial_karatsuba!(32, 64);
+        partial_karatsuba!(16, 32);
 
         uint_mul_limbs(&self.limbs, &rhs.limbs)
     }
